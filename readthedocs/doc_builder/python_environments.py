@@ -97,11 +97,11 @@ class Virtualenv(PythonEnvironment):
 
     def install_core_requirements(self):
         requirements = [
-            'sphinx==1.3.1',
+            'sphinx==1.3.5',
             'Pygments==2.0.2',
-            'setuptools==18.6.1',
-            'docutils==0.11',
-            'mkdocs==0.14.0',
+            'setuptools==20.1.1',
+            'docutils==0.12',
+            'mkdocs==0.15.0',
             'mock==1.0.1',
             'pillow==2.6.1',
             'readthedocs-sphinx-ext==0.5.4',
@@ -174,23 +174,23 @@ class Conda(PythonEnvironment):
             shutil.rmtree(version_path)
         self.build_env.run(
             'conda',
+            'env',
             'create',
-            '--yes',
             '--name',
             self.version.slug,
-            'python={python_version}'.format(python_version=self.config.python_version),
+            '--file',
+            self.config.conda_file,
             bin_path=None,  # Don't use conda bin that doesn't exist yet
         )
 
     def install_core_requirements(self):
-        conda_env_path = os.path.join(self.project.doc_path, 'conda')
 
         # Use conda for requirements it packages
         requirements = [
-            'sphinx==1.3.1',
+            'sphinx==1.3.5',
             'Pygments==2.0.2',
-            'docutils==0.11',
-            'mock==1.0.1',
+            'docutils==0.12',
+            'mock',
             'pillow==3.0.0',
             'sphinx_rtd_theme==0.1.7',
             'alabaster>=0.7,<0.8,!=0.7.5',
@@ -210,7 +210,7 @@ class Conda(PythonEnvironment):
 
         # Install pip-only things.
         pip_requirements = [
-            'mkdocs==0.14.0',
+            'mkdocs==0.15.0',
             'readthedocs-sphinx-ext==0.5.4',
             'commonmark==0.5.4',
             'recommonmark==0.1.1',
@@ -231,7 +231,6 @@ class Conda(PythonEnvironment):
         )
 
     def install_user_requirements(self):
-        conda_env_path = os.path.join(self.project.doc_path, 'conda')
         self.build_env.run(
             'conda',
             'env',

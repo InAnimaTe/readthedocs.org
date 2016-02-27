@@ -74,7 +74,8 @@ class UpdateDocsTask(Task):
     default_retry_delay = (7 * 60)
     name = 'update_docs'
 
-    def __init__(self, build_env=None, python_env=None, force=False, search=True, localmedia=True,
+    def __init__(self, build_env=None, python_env=None, config=None,
+                 force=False, search=True, localmedia=True,
                  build=None, project=None, version=None):
         self.build_env = build_env
         self.python_env = python_env
@@ -90,6 +91,8 @@ class UpdateDocsTask(Task):
         self.project = {}
         if project is not None:
             self.project = project
+        if config is not None:
+            self.config = config
 
     def _log(self, msg):
         log.info(LOG_TEMPLATE
@@ -106,10 +109,12 @@ class UpdateDocsTask(Task):
         self.build_search = search
         self.build_localmedia = localmedia
         self.build_force = force
+        self.config = None
 
         env_cls = LocalEnvironment
         self.setup_env = env_cls(project=self.project, version=self.version,
-                                 build=self.build, record=record)
+                                 build=self.build, record=record,
+                                 report_build_success=False)
 
         # Environment used for code checkout & initial configuration reading
         with self.setup_env:
@@ -126,6 +131,10 @@ class UpdateDocsTask(Task):
                 )
 
             self.config = load_yaml_config(version=self.version)
+
+        if self.setup_env.failed:
+            self.send_notifications()
+            return None
 
         env_vars = self.get_env_vars()
         if docker or settings.DOCKER_ENABLE:
@@ -218,7 +227,13 @@ class UpdateDocsTask(Task):
             commit = self.project.vcs_repo(self.version.slug).commit
             if commit:
                 self.build['commit'] = commit
-        except ProjectImportError:
+        except ProjectImportError as e:
+            log.error(
+                LOG_TEMPLATE.format(project=self.project.slug,
+                                    version=self.version.slug,
+                                    msg=str(e)),
+                exc_info=True,
+            )
             raise BuildEnvironmentError('Failed to import project',
                                         status_code=404)
 
@@ -338,6 +353,9 @@ class UpdateDocsTask(Task):
 
     def build_docs_localmedia(self):
         """Get local media files with separate build"""
+        if 'htmlzip' not in self.config.formats:
+            return False
+
         if self.build_localmedia:
             if self.project.is_type_sphinx:
                 return self.build_docs_class('sphinx_singlehtmllocalmedia')
@@ -345,17 +363,17 @@ class UpdateDocsTask(Task):
 
     def build_docs_pdf(self):
         """Build PDF docs"""
-        if (self.project.slug in HTML_ONLY or
-                not self.project.is_type_sphinx or
-                not self.project.enable_pdf_build):
+        if ('pdf' not in self.config.formats or
+            self.project.slug in HTML_ONLY or
+                not self.project.is_type_sphinx):
             return False
         return self.build_docs_class('sphinx_pdf')
 
     def build_docs_epub(self):
         """Build ePub docs"""
-        if (self.project.slug in HTML_ONLY or
-                not self.project.is_type_sphinx or
-                not self.project.enable_epub_build):
+        if ('epub' not in self.config.formats or
+            self.project.slug in HTML_ONLY or
+                not self.project.is_type_sphinx):
             return False
         return self.build_docs_class('sphinx_epub')
 
